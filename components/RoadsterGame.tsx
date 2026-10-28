@@ -192,13 +192,13 @@ export default function RoadsterGame() {
             <kbd>↓</kbd>브레이크
           </span>
           <span>
-            <kbd>← →</kbd>조향
+            <kbd>← →</kbd>조향 · 공중에서 배럴 롤
           </span>
           <span>
             <kbd>Shift</kbd>부스터
           </span>
           <span>
-            <kbd>Space</kbd>점프 · 길게 누르면 더 높이 · 공중에서 백플립
+            <kbd>Space</kbd>점프 · 길게 누르면 더 높이
           </span>
           <span>
             <kbd>R</kbd>첫 화면
@@ -243,11 +243,11 @@ export default function RoadsterGame() {
               <dt>↓ / S</dt>
               <dd>브레이크 · 후진</dd>
               <dt>← → / A D</dt>
-              <dd>조향 (공중에서는 회전)</dd>
+              <dd>조향, 공중에서는 스러스터로 배럴 롤</dd>
               <dt>Shift</dt>
               <dd>로켓 스러스터 부스터</dd>
               <dt>Space</dt>
-              <dd>점프, 길게 누르면 최대 1초까지 더 높이, 공중에서 한 번 더 누르면 백플립</dd>
+              <dd>점프, 길게 누르면 최대 1초까지 더 높이</dd>
               <dt>R</dt>
               <dd>첫 화면으로</dd>
             </dl>

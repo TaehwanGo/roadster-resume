@@ -68,7 +68,8 @@ const JUMP_V = 9.5; // tap: about 1.6 m
 const JUMP_HOLD_MAX = 1.0; // seconds Space can keep the lift jets on
 const JUMP_HOLD_LIFT = 22; // upward accel while held (net -6 m/s² against gravity)
 const STEER_RATE = 1.15; // rad/s at full lock on the ground
-const AIR_SPIN_RATE = 4.2; // rad/s body spin in the air: a full turn in 1.5 s, so a long jump fits a 360
+const ROLL_RATE = 5.5; // rad/s barrel roll in the air, after the McGregor demo's thruster roll: one turn in about 1.1 s
+const SAFE_LANDING_ROLL = 0.9; // rad off upright that still lands cleanly
 const STEER_RESPONSE = 3.2; // how fast the wheel follows the key (1/s)
 const IDLE_ORBIT = 0.16; // rad/s on the title screen
 
@@ -567,20 +568,18 @@ export async function createGame(
     x: 0,
     y: 0,
     z: 12,
-    yaw: 0, // where the body points
-    moveYaw: 0, // where the car travels; splits from yaw only in the air
-    spin: 0, // body rotation gathered during the current jump
+    yaw: 0,
+    roll: 0, // barrel roll angle around the car's length
+    rolled: 0, // roll gathered during the current jump
     speed: 0,
     steer: 0,
     vy: 0,
     lastVy: 0,
     onGround: true,
-    jumps: 0,
     holding: false,
     holdT: 0,
     energy: 100,
     pitch: 0,
-    flip: -1,
     burst: 0,
   };
   const keys: Record<ControlKey, boolean> = {
@@ -609,21 +608,12 @@ export async function createGame(
 
   function pressJump() {
     if (!started || paused) return;
-    if (car.onGround) {
-      car.onGround = false;
-      car.vy = JUMP_V;
-      car.jumps = 1;
-      car.holding = true;
-      car.holdT = 0;
-      car.burst = 0.3;
-    } else if (car.jumps < 2) {
-      car.vy = Math.max(car.vy, 0) + 13;
-      car.jumps = 2;
-      car.holding = false;
-      car.flip = 0;
-      car.burst = 0.5;
-      hooks.onToast('THRUSTER FLIP');
-    }
+    if (!car.onGround) return;
+    car.onGround = false;
+    car.vy = JUMP_V;
+    car.holding = true;
+    car.holdT = 0;
+    car.burst = 0.3;
   }
   function placeCar(z: number) {
     Object.assign(car, {
@@ -631,17 +621,15 @@ export async function createGame(
       y: 0,
       z,
       yaw: 0,
-      moveYaw: 0,
-      spin: 0,
+      roll: 0,
+      rolled: 0,
       speed: 0,
       steer: 0,
       vy: 0,
       lastVy: 0,
       onGround: true,
-      jumps: 0,
       holding: false,
       pitch: 0,
-      flip: -1,
     });
     zeroArmed = true;
     zeroT0 = null;
@@ -738,18 +726,17 @@ export async function createGame(
       // full lock fades in from a standstill and eases off a little at top speed
       const sf = Math.min(1, Math.abs(car.speed) / 14) * (1 - Math.min(0.35, Math.abs(car.speed) / 260));
       car.yaw += car.steer * STEER_RATE * sf * Math.sign(car.speed || 1) * (boosting ? 0.8 : 1) * dt;
-      car.moveYaw = car.yaw;
     } else {
-      // in the air ←/→ spin the body directly while the car keeps flying the way it launched
-      const d = steerIn * AIR_SPIN_RATE * dt;
-      car.yaw += d;
-      car.spin += d;
+      // in the air ←/→ fire the side thrusters: a barrel roll around the car's length, heading unchanged
+      const d = steerIn * ROLL_RATE * dt;
+      car.roll += d;
+      car.rolled += d;
     }
 
     car.energy = boosting ? Math.max(0, car.energy - 28 * dt) : Math.min(100, car.energy + 8 * dt);
 
-    car.x -= Math.sin(car.moveYaw) * car.speed * dt;
-    car.z -= Math.cos(car.moveYaw) * car.speed * dt;
+    car.x -= Math.sin(car.yaw) * car.speed * dt;
+    car.z -= Math.cos(car.yaw) * car.speed * dt;
     if (Math.abs(car.x) > 140) {
       car.x = Math.sign(car.x) * 140;
       car.speed *= 0.5;
@@ -768,7 +755,6 @@ export async function createGame(
       if (g < car.y - 0.05) {
         car.onGround = false;
         car.vy = Math.min(car.lastVy, 24);
-        car.jumps = 1;
         car.holding = false;
       } else {
         car.lastVy = Math.max(0, (g - car.y) / dt);
@@ -785,25 +771,27 @@ export async function createGame(
       car.y += car.vy * dt;
       if (car.y <= g) {
         if (car.vy < -16 && !reduceMotion) shake = Math.min(0.6, -car.vy / 40);
-        const turns = Math.floor(Math.abs(car.spin) / (Math.PI * 2) + 0.15); // 306° or more counts as a full turn
-        if (turns > 0) hooks.onToast(`SPIN ${turns * 360}°`);
-        else if (car.flip >= 0) hooks.onToast('LANDED');
-        // drive off the way the body lands: speed carries over by how well it lines up with the travel direction
-        const align = Math.cos(car.yaw - car.moveYaw);
-        car.speed *= Math.sign(align || 1) * Math.max(0.3, Math.abs(align));
-        car.moveYaw = car.yaw;
-        car.spin = 0;
+        // how far off upright the car touches down; past SAFE_LANDING_ROLL it lands on its side and scrubs speed
+        const off = Math.atan2(Math.sin(car.roll), Math.cos(car.roll));
+        const turns = Math.floor(Math.abs(car.rolled) / (Math.PI * 2) + 0.15); // 306° or more counts as a full roll
+        if (Math.abs(off) > SAFE_LANDING_ROLL) {
+          car.speed *= 0.4;
+          if (!reduceMotion) shake = 0.6;
+          hooks.onToast('HARD LANDING');
+        } else if (turns > 0) {
+          hooks.onToast(turns > 1 ? `BARREL ROLL ×${turns}` : 'BARREL ROLL');
+        }
+        car.roll = off; // settles back to upright on the ground
+        car.rolled = 0;
         car.y = g;
         car.vy = 0;
         car.onGround = true;
         car.lastVy = 0;
-        car.jumps = 0;
-        car.flip = -1;
         car.holding = false;
       }
     }
 
-    // pitch: follow ramp slope on the ground, nose to velocity in the air, plus the thruster flip
+    // pitch: follow ramp slope on the ground, nose to velocity in the air
     const r = rampAt(car.x, car.z);
     const pitchTarget = car.onGround
       ? r
@@ -811,14 +799,9 @@ export async function createGame(
         : 0
       : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);
     car.pitch += (pitchTarget - car.pitch) * Math.min(1, dt * 8);
-    let flipAngle = 0;
-    if (car.flip >= 0) {
-      car.flip = Math.min(1, car.flip + dt / 0.85);
-      const t = car.flip;
-      flipAngle = Math.PI * 2 * (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-    }
+    if (car.onGround) car.roll += (0 - car.roll) * Math.min(1, dt * 10);
     R.group.position.set(car.x, car.y, car.z);
-    R.group.rotation.set(car.pitch + flipAngle, car.yaw, 0, 'YXZ');
+    R.group.rotation.set(car.pitch, car.yaw, car.roll, 'YXZ');
 
     for (const w of R.wheels) {
       w.spin.rotation.x -= (car.speed * dt) / 0.42;
@@ -894,14 +877,14 @@ export async function createGame(
     const sp = Math.max(0, car.speed);
     const back = 9.5 + sp * 0.03,
       up = 3.6 + sp * 0.01;
-    tmpV.set(car.x + Math.sin(car.moveYaw) * back, car.y * 0.7 + up, car.z + Math.cos(car.moveYaw) * back);
+    tmpV.set(car.x + Math.sin(car.yaw) * back, car.y * 0.7 + up, car.z + Math.cos(car.yaw) * back);
     camera.position.lerp(tmpV, 1 - Math.exp(-dt * 10));
     if (shake > 0) {
       camera.position.y += (Math.random() - 0.5) * shake;
       camera.position.x += (Math.random() - 0.5) * shake;
       shake = Math.max(0, shake - dt * 1.8);
     }
-    look.set(car.x - Math.sin(car.moveYaw) * 6, car.y + 1.3, car.z - Math.cos(car.moveYaw) * 6);
+    look.set(car.x - Math.sin(car.yaw) * 6, car.y + 1.3, car.z - Math.cos(car.yaw) * 6);
     camera.lookAt(look);
     const fovT = 62 + sp * 0.12 + (keys.boost && car.energy > 1 ? 8 : 0);
     camera.fov += (fovT - camera.fov) * Math.min(1, dt * 4);
