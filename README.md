@@ -31,4 +31,4 @@ pnpm build        # out/ 에 정적 파일 생성
 - 주행·물리·3D 장면: `lib/engine.ts`
 - 화면(HUD, 모달, 상세 패널): `components/`
 
-커밋할 때 husky `pre-commit` 훅이 `lint`와 `check-ts`를 실행합니다. `main`에 push하면 GitHub Actions가 빌드해 GitHub Pages에 배포합니다.
+커밋할 때 husky `pre-commit` 훅이 `lint`와 `check-ts`를 실행합니다. GitHub Actions(CI)가 push·PR마다 lint, 타입 체크, 빌드를 확인합니다. 배포는 Vercel이 맡습니다.
