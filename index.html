@@ -1,0 +1,1109 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roadster Résumé Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&family=Saira+Condensed:wght@600;800&display=swap">
+<style>
+/* Layout: full-bleed WebGL test track at dusk; telemetry card pinned top-left, stage dossier docked right (bottom sheet on phones).
+   One committed dusk look by choice, so colors are set once on :root with color-scheme dark. */
+:root {
+  --ink: #0e1017;
+  --panel: rgba(14, 16, 24, 0.84);
+  --panel-solid: #141722;
+  --line: rgba(255, 228, 210, 0.16);
+  --text: #f4ede7;
+  --muted: #b9ada5;
+  --red: #e8202f;
+  --amber: #ffb54d;
+  --plasma: #86dbff;
+  --display: "Saira Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --gl: max(16px, env(safe-area-inset-left, 0px));
+  --gr: max(16px, env(safe-area-inset-right, 0px));
+  --gt: max(16px, env(safe-area-inset-top, 0px));
+  --gb: max(16px, env(safe-area-inset-bottom, 0px));
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; overflow: hidden; background: var(--ink); color: var(--text);
+  font-family: var(--body); font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+.hud {
+  position: fixed; inset: 0; pointer-events: none;
+  padding-left: var(--gl); padding-right: var(--gr); padding-block: 16px;
+}
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+
+/* Telemetry */
+.tele {
+  position: absolute; top: var(--gt); left: var(--gl);
+  width: min(300px, calc(100% - var(--gl) - var(--gr)));
+  padding: 12px 14px 12px; pointer-events: auto;
+  display: grid; gap: 8px;
+}
+.tele-name { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+.speed { display: flex; align-items: baseline; gap: 6px; font-family: var(--display); font-weight: 800; line-height: 0.9; }
+.speed span { font-size: 56px; font-variant-numeric: tabular-nums; min-width: 3ch; }
+.speed small { font-size: 18px; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; }
+.boost { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.boost i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--red), var(--amber)); transform-origin: left; }
+.boost.low i { background: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.stats div { display: grid; gap: 0; }
+.stats dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--display); font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; }
+.strip { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; }
+.strip button {
+  height: 14px; padding: 0; border: 0; border-radius: 2px; cursor: pointer;
+  background: rgba(255,255,255,0.12);
+}
+.strip button.seen { background: rgba(255, 181, 77, 0.55); }
+.strip button.on { background: var(--red); }
+.strip-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+
+/* Dossier */
+.dossier {
+  position: absolute; top: var(--gt); right: var(--gr);
+  width: min(390px, calc(100% - var(--gl) - var(--gr)));
+  max-height: calc(100% - var(--gt) - var(--gb) - 56px);
+  overflow-y: auto; pointer-events: auto; padding: 16px 18px 18px;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.dossier.swap { opacity: 0; transform: translateX(10px); }
+.d-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.d-stage { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--red); text-transform: uppercase; }
+.d-toggle { display: none; background: none; border: 1px solid var(--line); border-radius: 4px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.dossier h2 { margin: 4px 0 2px; font-size: 24px; line-height: 1.25; font-weight: 700; text-wrap: balance; }
+.d-meta { color: var(--muted); font-size: 13px; }
+.d-body { display: grid; gap: 12px; margin-top: 12px; }
+.d-group h3 { margin: 0 0 4px; font-size: 12px; font-family: var(--mono); font-weight: 500; letter-spacing: 0.08em; color: var(--amber); }
+.d-group ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.d-group li { position: relative; padding-left: 14px; font-size: 13.5px; }
+.d-group li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 6px; height: 2px; background: var(--red); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips span { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); }
+.links { display: grid; gap: 4px; }
+.links a { color: var(--plasma); text-decoration: none; font-size: 13px; overflow-wrap: anywhere; }
+.links a:hover { text-decoration: underline; }
+.copy { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.copy code { font-family: var(--mono); font-size: 13px; user-select: all; }
+.copy button { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; font-size: 12px; cursor: pointer; }
+
+/* Key hint */
+.keys {
+  position: absolute; left: var(--gl); bottom: var(--gb);
+  display: flex; flex-wrap: wrap; gap: 6px 12px; max-width: calc(100% - var(--gl) - var(--gr));
+  font-size: 12px; color: var(--text); text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.keys kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid rgba(255,255,255,0.35); border-radius: 3px; background: rgba(0,0,0,0.35); margin-right: 4px; }
+
+.toast {
+  position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%);
+  font-family: var(--display); font-weight: 800; font-size: clamp(28px, 6vw, 54px); letter-spacing: 0.04em;
+  color: var(--text); text-shadow: 0 2px 18px rgba(232, 32, 47, 0.7); opacity: 0; transition: opacity .2s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+
+/* Touch controls */
+.touch { display: none; }
+@media (pointer: coarse) {
+  .keys { display: none; }
+  .touch {
+    position: absolute; left: var(--gl); right: var(--gr); bottom: var(--gb);
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; pointer-events: none;
+  }
+  .pad { display: flex; gap: 10px; pointer-events: auto; }
+  .pad.right { display: grid; grid-template-columns: repeat(2, 64px); gap: 10px; }
+  .tb {
+    width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--line);
+    background: var(--panel); font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: 0.04em;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .tb.on { background: var(--red); }
+  .tb.boost { color: var(--amber); }
+}
+
+/* Overlays */
+.overlay {
+  position: fixed; inset: 0; display: grid; place-items: center; z-index: 5;
+  background: linear-gradient(180deg, rgba(14,16,23,0.25), rgba(14,16,23,0.78));
+  padding-left: var(--gl); padding-right: var(--gr); padding-block: 24px; overflow-y: auto;
+}
+.sheet { width: min(560px, 100%); padding: 26px 26px 24px; display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
+.sheet h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(48px, 11vw, 84px); line-height: 0.88; letter-spacing: 0.01em; text-wrap: balance; }
+.sheet h1 em { font-style: normal; color: var(--red); }
+.who { font-size: 16px; font-weight: 600; }
+.lede { margin: 0; color: var(--muted); max-width: 52ch; }
+.ctrl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+.ctrl dt { font-family: var(--mono); font-size: 12px; color: var(--text); white-space: nowrap; }
+.ctrl dd { margin: 0; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.go {
+  border: 0; border-radius: 4px; background: var(--red); color: #fff; cursor: pointer;
+  font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: 0.08em; padding: 8px 26px;
+}
+.go:hover { filter: brightness(1.1); }
+.ghost { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 8px 16px; cursor: pointer; color: var(--text); text-decoration: none; font-size: 13px; }
+.result { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
+.result dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--muted); }
+.result dd { margin: 0; font-family: var(--display); font-weight: 800; font-size: 30px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  .tele { width: min(230px, calc(100% - var(--gl) - var(--gr))); padding: 10px 12px; gap: 6px; }
+  .speed span { font-size: 40px; }
+  .stats dd { font-size: 16px; }
+  .dossier {
+    top: auto; bottom: calc(var(--gb) + 150px); left: var(--gl); right: var(--gr); width: auto;
+    max-height: 42%; padding: 12px 14px;
+  }
+  .d-toggle { display: inline-block; }
+  .dossier.collapsed .d-body { display: none; }
+  .dossier h2 { font-size: 19px; }
+}
+@media (max-width: 720px) and (pointer: fine) {
+  .dossier { bottom: calc(var(--gb) + 56px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dossier, .toast { transition: none; }
+}
+</style>
+
+<canvas id="scene" aria-label="테슬라 로드스터를 몰며 고태환의 이력을 보는 3D 주행 게임"></canvas>
+
+<div class="hud">
+  <section class="tele card" aria-label="주행 정보">
+    <div class="tele-name">고태환 · Roadster Run</div>
+    <div class="speed"><span id="kmh">0</span><small>KM/H</small></div>
+    <div class="boost" id="boostBar" title="부스터 에너지"><i id="boostFill"></i></div>
+    <dl class="stats">
+      <div><dt>0–100</dt><dd id="zero">—</dd></div>
+      <div><dt>ORB</dt><dd id="orbs">0</dd></div>
+      <div><dt>STAGE</dt><dd id="stageNo">0/15</dd></div>
+    </dl>
+    <nav class="strip" id="strip" aria-label="스테이지로 이동"></nav>
+    <div class="strip-label">칸을 누르면 그 스테이지로 이동</div>
+  </section>
+
+  <aside class="dossier card" id="dossier" aria-live="polite"></aside>
+
+  <div class="keys" id="keys">
+    <span><kbd>↑</kbd>가속</span><span><kbd>↓</kbd>브레이크</span><span><kbd>← →</kbd>조향</span>
+    <span><kbd>Shift</kbd>부스터</span><span><kbd>Space</kbd>점프 · 공중에서 백플립</span><span><kbd>R</kbd>리스폰</span>
+  </div>
+
+  <div class="touch" id="touch">
+    <div class="pad">
+      <button class="tb" data-key="left" aria-label="왼쪽">◀</button>
+      <button class="tb" data-key="right" aria-label="오른쪽">▶</button>
+    </div>
+    <div class="pad right">
+      <button class="tb boost" data-key="boost">BOOST</button>
+      <button class="tb" data-key="jump">JUMP</button>
+      <button class="tb" data-key="down">BRAKE</button>
+      <button class="tb" data-key="up">GAS</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="sheet">
+    <div class="kicker">Tesla Roadster 컨셉 · 이력서 주행</div>
+    <h1>ROADSTER <em>RUN</em></h1>
+    <div class="who">고태환 · Forward Deployed Engineer</div>
+    <p class="lede">해질녘 테스트 트랙을 달리며 15개 스테이지에서 경력과 프로젝트를 확인하세요. 표지판에 다가가면 상세 내용이 열립니다. 길 위의 파란 오브는 부스터를 채워 줍니다.</p>
+    <dl class="ctrl">
+      <dt>↑ / W</dt><dd>가속</dd>
+      <dt>↓ / S</dt><dd>브레이크 · 후진</dd>
+      <dt>← → / A D</dt><dd>조향 (공중에서는 회전)</dd>
+      <dt>Shift</dt><dd>로켓 스러스터 부스터</dd>
+      <dt>Space</dt><dd>점프, 공중에서 한 번 더 누르면 스러스터 백플립</dd>
+      <dt>R</dt><dd>현재 스테이지에서 다시 출발</dd>
+    </dl>
+    <div class="row">
+      <button class="go" id="start">출발</button>
+      <a class="ghost" href="https://pickle-weeder-20b.notion.site/59bd0bc3fef244edbcf024827aeda484" target="_blank" rel="noopener">이력서를 문서로 보기</a>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="finish" hidden>
+  <div class="sheet">
+    <div class="kicker">Finish</div>
+    <h1>완주했습니다</h1>
+    <p class="lede">끝까지 달려 주셔서 감사합니다. 함께 일할 이야기가 있다면 아래로 연락 주세요.</p>
+    <dl class="result">
+      <div><dt>TIME</dt><dd id="fTime">0.0s</dd></div>
+      <div><dt>ORB</dt><dd id="fOrbs">0</dd></div>
+      <div><dt>BEST 0–100</dt><dd id="fZero">—</dd></div>
+    </dl>
+    <div class="copy"><code id="mailText">gth1123@naver.com</code><button id="copyMail">이메일 복사</button></div>
+    <div class="row">
+      <button class="go" id="again">처음부터</button>
+      <button class="ghost" id="keepDriving">계속 달리기</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ───────────── Résumé data ───────────── */
+const STAGES = [
+  {
+    kicker: 'About', title: '고태환 · FDE', meta: 'Forward Deployed Engineer',
+    board: ['고객 현장에서 끝까지 해내는 엔지니어', '제조 데이터 SaaS 3개 제품 FE·BE·파이프라인·IoT', '측정하고, 원인을 찾고, 수치로 검증'],
+    groups: [{ h: 'INTRODUCTION', items: [
+      '고객 중심으로 생각하고 끝까지 해내는 FDE(Forward Deployed Engineer)입니다',
+      '제조 현장 데이터 SaaS 3개 제품(Machine365 · Eco365 · Factory365)에서 프론트엔드, 백엔드, 데이터 파이프라인, 현장 IoT 장비까지 맡아 왔습니다',
+      '고객 공장에 약 2개월 직접 출근하며 요구사항 수집부터 설계·개발·배포·데이터 보정까지 책임졌습니다',
+      '운영 데이터를 직접 측정해 원인을 찾고, 수치로 검증한 뒤 고칩니다',
+      '배운 것을 문서와 스터디로 공유하며 함께 성장하는 것을 좋아합니다',
+    ]}],
+    tech: [],
+  },
+  {
+    kicker: 'Skills', title: 'Skills', meta: 'Soft Skills · Hard Skills',
+    board: ['Frontend · TypeScript, React, Next.js', 'Backend · Java 17, Spring Boot 3, FastAPI', 'Cloud·IoT · Azure, MQTT, OPC UA', 'Observability · Datadog, Elasticsearch'],
+    groups: [
+      { h: 'SOFT', items: [
+        '현장 중심 문제 정의: 고객 공장에서 요구를 듣고 기능과 데이터 설계로 바꿉니다',
+        '근거 기반 원인 분석: 운영 데이터와 실행계획을 측정해 원인을 확정한 뒤 고칩니다',
+        '끝까지 책임지는 실행: 요구 접수 → 설계 → 개발 → 배포 → 데이터 보정 → 마감',
+        '문서화와 지식 공유: 설계·TDD 문서, 팀 위키, 온보딩 가이드',
+      ]},
+      { h: 'HARD', items: [
+        'Frontend: TypeScript, React, Next.js, TanStack Query, Recoil, Zustand, Redux, react-hook-form, Tailwind, shadcn/ui, AG Grid, ECharts, ApexCharts, GraphQL, NX, Rollup, Jest',
+        'Mobile · Desktop: React Native(Expo), Electron',
+        'Backend · DB: Java 17, Spring Boot 3, JPA, Python, FastAPI, SQLAlchemy, NodeJS, SQL 성능 분석·튜닝(MSSQL, PostgreSQL)',
+        'Cloud · IoT: Azure(IoT Hub, Functions, Blob Storage, Container Apps), MQTT, OPC UA, Ansible, Jenkins, Docker, Nginx, Ubuntu',
+        'Observability: Datadog, FluentD, Elasticsearch',
+        'Tools: Git, GitHub Actions, Jira, Confluence, Redmine, Claude Code(MCP·Skills), Copilot, Obsidian, draw.io',
+      ]},
+    ],
+    tech: [],
+  },
+  {
+    kicker: 'Career', title: '쓰리뷰 3View', meta: '선임 · 2023.12 ~ 현재',
+    board: ['제조 현장 데이터 SaaS 3개 제품 담당', 'PR 1,666건 작성 (98% 머지)', '리뷰 1,511건 · Jira 1,488건 (96% 완료)'],
+    groups: [{ h: 'OVERVIEW', items: [
+      'Machine365 · Eco365 · Factory365의 프론트엔드, 백엔드, 데이터 수집 파이프라인, 현장 IoT 장비까지 담당',
+      'PR 1,666건 작성(98% 머지) · 1,511건 리뷰, Jira 1,488건 담당(96% 완료)',
+      '다음 스테이지부터 제품별 프로젝트가 이어집니다',
+    ]}],
+    tech: [],
+  },
+  {
+    kicker: 'Project', title: 'Factory365', meta: '멀티테넌트 MES 현장 상주 개발 · 2026.07 ~ 현재',
+    board: ['고객 공장 약 2개월 상주 · 요구부터 보정까지', '외주출고 중량 0 → 1,422줄 · 약 349t 복구', '커넥션 고갈 대응 2,248ms → 0.067ms', '상주 8주 PR 263건 · 티켓 160건'],
+    groups: [
+      { h: 'FIELD', items: [
+        '요구사항 수집 → 분석·설계 문서 → 백엔드·관리자 웹·작업자 키오스크·공장 엣지 서버 구현 → 운영 배포 → 데이터 보정',
+        '고객 이슈 115건 담당, 96건 완료 · 처리 티켓의 55%가 2개 이상 서비스를 함께 바꾼 작업',
+      ]},
+      { h: 'HIGHLIGHTS', items: [
+        '키오스크 출고 2,652줄 중 53.6%가 중량 0으로 저장되던 원인을 찾아 공정 라우팅 기준으로 수정, 보정 SQL로 1,422줄·약 349t 복구 (문의 당일)',
+        '20만 행 풀스캔으로 생긴 커넥션 풀 타임아웃을 pg_stat_statements·Datadog으로 확정, 함수 인덱스로 2,248ms → 0.067ms',
+        '고객사가 하드코딩된 로트 계보 DB 함수를 백엔드 재귀 CTE로 이관, 계보 맵 화면 구현',
+        '공구 재고 상세 조회 175.6ms → 86.9ms, 결과 대조 차이 0행으로 회귀 검증',
+        '외주 분할 입고: 3개 레포 동시 변경, 운영 30일 데이터 2,029건으로 호환성 검증',
+        '투입 첫날 지식베이스 구축(도메인 19편·DB 11편), 설계·TDD 문서 124편',
+      ]},
+    ],
+    tech: ['Spring Boot 3', 'Java 17', 'PostgreSQL', 'Next.js 14', 'Electron', 'MQTT', 'OPC UA', 'Datadog'],
+  },
+  {
+    kicker: 'Project', title: 'Machine365', meta: '설비 모니터링·에너지 관리(FEMS) SaaS · 2023.12 ~ 현재',
+    board: ['v1 → v2 리뉴얼 프론트 단독 (커밋 99%)', 'v2 → v3 UX 3.0 전환 리드', '39초 응답 원인(JPA EAGER) 제거', 'Expo 앱 App Store · Google Play 출시'],
+    groups: [
+      { h: 'V2 RENEWAL', items: [
+        'Pages Router → App Router, Tailwind·shadcn/ui 도입, PC·모바일 화면 분리',
+        '리뉴얼 기간 커밋 99%(487/492), 5개월 만에 v2 기본화 · v1 제거',
+      ]},
+      { h: 'V2 OPERATION', items: [
+        '다국어 5개 언어(약 3,000키), DB 기반 동적 메뉴·권한, 드래그앤드롭 메뉴 편집기',
+        '분전반(FEMS) 메뉴군, ECharts sankey 에너지 계통도, 한전 요금 시뮬레이션·목표 피크 알림',
+      ]},
+      { h: 'V3 LEAD', items: [
+        '셸·내비게이션 설계, 데모 → 베타 토글 → 기본화 → v2 제거의 단계적 전환',
+        '3인 프론트 팀에서 팀원 PR의 77% 리뷰',
+        '에너지 메뉴 통합 개편: 통합 API 8종 명세 후 FE·BE 구현, 커버링 인덱스로 Key Lookup 제거',
+        '쿼리 튜닝 30일 조회 720ms → 57ms, 직전 행 조회 0.2ms',
+      ]},
+      { h: 'MOBILE', items: ['Expo 하이브리드 앱을 처음부터 개발해 스토어 출시, Expo SDK 51 → 55 업그레이드'] },
+    ],
+    tech: ['Next.js 14', 'TypeScript', 'TanStack Query', 'ECharts', 'Expo', 'Spring Boot 3', 'Azure SQL'],
+  },
+  {
+    kicker: 'Project', title: 'Eco365', meta: '탄소 관리(PCF·CBAM) SaaS · 2025.06 ~ 2026.03',
+    board: ['프론트 커밋 1위 · 화면 75개 중 45개 주도', 'ISO 14067 PCF 분석 전체 흐름 구현', 'PCF 보고서 자동 생성 (Word → PDF)', 'CBAM 배출량 산정 API (FastAPI)'],
+    groups: [{ h: 'HIGHLIGHTS', items: [
+      '프론트엔드 핵심 개발(현재 코드의 41%) + FastAPI 산정 API 개발',
+      'PCF 흐름: 목표·범위 → 데이터 수집 8개 섹션 → 할당·검증 → 전과정목록 → 탄소발자국 결과(기여도·불확도·민감도)',
+      'docx.js로 ISO 14067 양식 Word 생성 → LibreOffice PDF 변환, CBAM 보고서가 같은 구조 재사용',
+      'CBAM 내재배출량·전구물질·제품 고유내재배출량(SEE) API와 계산식 문서',
+      '유틸리티 시설 솔루션 실서비스 전환, 백엔드 API 6종 신규',
+      'PCF 심사 부적합 12건 처리, TÜV CBAM 인증심사 권고사항 반영',
+    ]}],
+    tech: ['Next.js 15', 'React 19', 'Zustand', 'docx', 'FastAPI', 'SQLAlchemy 2', 'MSSQL'],
+  },
+  {
+    kicker: 'Project', title: '현장 데이터 파이프라인', meta: 'IoT 장비 · 모니터링 · 2024 ~ 현재',
+    board: ['장비 → IoT Hub → Blob → Function → SQL', '산업용 PC 약 30개 현장 배포', '전력 0값 원인 특정 (사이클 성공률 약 84%)', 'Datadog RUM · E2E 회귀 + Slack 알림'],
+    groups: [{ h: 'HIGHLIGHTS', items: [
+      'Azure 수집 워크플로우 운영, 장비 디바이스 키 일괄 발급(Jenkins), Function App 수신 로직 개발',
+      '산업용 PC 세팅과 데이터 전송 프로그램·FluentD를 Ansible·Jenkins로 배포 (약 30개 현장, 한 현장 최대 50대)',
+      '장비 46대 동시 재연결로 생긴 Elasticsearch OOM의 원인 장비 특정',
+      '전력 0값: 17회 순차 읽기가 하나의 예외 처리로 묶인 구조 특정',
+      '중복 데이터 알림 30일 분석: 127구간 중 실제 중복 2회, 오탐의 83%가 0 채움',
+      'Datadog RUM·Session Replay, 브라우저 테스트 E2E 회귀, Bits AI 대시보드',
+    ]}],
+    tech: ['Azure IoT Hub', 'Functions', 'Python', 'Ansible', 'Jenkins', 'FluentD', 'Elasticsearch', 'Datadog'],
+  },
+  {
+    kicker: 'Project', title: '지식 체계 · AI · 보안', meta: '쓰리뷰 사내 활동',
+    board: ['사내 LLM 위키 기획 · 구축 (30명 대상)', '팀 위키 최다 기여 488커밋 · 문서 239편', 'Claude Code 스킬로 개발 규칙 표준화', 'SW 보안약점 162건 분류 · 139건 수정'],
+    groups: [{ h: 'HIGHLIGHTS', items: [
+      'git 마크다운 + Obsidian + Claude MCP 사내 LLM 위키를 팀 위키로 이관, 온보딩 가이드 작성',
+      '설계·TDD 문서 239편, 다이어그램 226점, Confluence 발행',
+      'Factory365 개발 규칙 스킬(11문서·약 2,500줄), Redmine 연동 스킬, Eco365 스킬 문서 51편',
+      '감리 보안약점: Eco365 162건 분류·139건 수정, Machine365 50건 수정',
+      '회사 홈페이지(Next.js 15, 4개 언어) 인수 운영',
+    ]}],
+    tech: ['Claude Code', 'MCP', 'Obsidian', 'Confluence'],
+  },
+  {
+    kicker: 'Career', title: 'Bubblecon', meta: '프론트엔드 · 2022.08 ~ 2023.12',
+    board: ['NX 모노레포 데이터 수집 라이브러리', '충남교육청 LRS 대시보드', '대교 중국어 학습 콘텐츠 (저작도구 · 사용자앱)', 'React Native 인증앱 스토어 배포'],
+    groups: [{ h: 'PROJECTS', items: [
+      '교육 데이터 수집 라이브러리: NX 모노레포, Rollup 패키지와 테스트용 Next.js 앱',
+      '충남교육청 LRS 대시보드: 수집된 학습 데이터를 차트로 시각화',
+      '대교 중국어 학습 콘텐츠: 도메인 JSON·API 설계, 타입 주도 개발, 관리자앱·사용자앱·공통 UI 모노레포',
+      'KIRD 알파 캠퍼스 유지보수: 구글 OTP 2차 인증 도입',
+      '한기대 통합학습창: 비디오·문서·퀴즈',
+      '충남교육청 QR 인증앱(React Native CLI) 스토어 배포',
+      '온보딩·코드 규칙·ESLint·Githook·RN 배포·Storybook 문서 정리',
+    ]}],
+    tech: ['React', 'Next.js', 'TypeScript', 'NX', 'Recoil', 'React Query', 'React Native'],
+  },
+  {
+    kicker: 'Career', title: 'DShare', meta: '프론트엔드 · 2021.11 ~ 2022.04',
+    board: ['내모(내신의 모든 것) 서비스 고도화', 'Google Analytics 도입', '백오피스(CRM) 필터 기능 유지보수'],
+    groups: [{ h: 'PROJECTS', items: [
+      '내모 서비스 고도화: 문제 풀이 프로세스와 UI가 바뀐 신규 기능, Google Analytics 도입',
+      '내모 백오피스(CRM): 필터 기능 추가 및 수정',
+    ]}],
+    tech: ['Next.js', 'TypeScript', 'Recoil', 'React Query', 'MUI', 'Antd'],
+  },
+  {
+    kicker: 'Career', title: '애드크림', meta: '프론트엔드 · 2021.07 ~ 2021.11',
+    board: ['TVCF 회원 콘텐츠 관리 웹 유지보수', '어워드 페이지 신규 개발'],
+    groups: [{ h: 'PROJECTS', items: [
+      'TVCF 회원 개인 콘텐츠 관리 웹: 기능 추가 및 수정 (React, Redux, Typesafe-actions)',
+      '어워드 페이지: 신규 페이지 및 기능 개발 (classic ASP, SCSS)',
+    ]}],
+    tech: ['React', 'TypeScript', 'Redux', 'Material-UI', 'classic ASP'],
+  },
+  {
+    kicker: 'Career', title: '코넥 · 설비보전팀', meta: '2017.06 ~ 2018.10',
+    board: ['자동차 부품 공장 가공설비 유지보수', '설비 예비품 · 업체 AS 관리', '현장 직원 관리 및 지원'],
+    groups: [{ h: 'WORK', items: [
+      '자동차 부품 공장 가공설비 유지보수',
+      '설비 예비품 관리, 설비 업체 AS 관리',
+      '현장 직원 관리 및 지원',
+    ]}],
+    tech: [],
+  },
+  {
+    kicker: 'Know-how', title: 'AI 활용 노하우', meta: 'Claude Code 중심 개발 흐름',
+    board: ['탭 7~10개 · git worktree로 티켓 3개 병렬', '착수 시 설계 문서, 종료 시 변경 반영', 'DB MCP는 읽기 전용 계정만', 'Datadog 알림 전용 DevOps 세션 상시 운영'],
+    groups: [
+      { h: 'MULTI-SESSION', items: [
+        '프로젝트마다 메인 세션, 티켓마다 탭과 git worktree로 작업 공간 분리',
+        'Claude Code 탭 7~10개로 티켓 3개 정도를 동시에 처리',
+      ]},
+      { h: 'DESIGN & VERIFY', items: [
+        '티켓 착수 시 사내 LLM 위키에 설계 문서, 종료 시 바뀐 내용 반영',
+        'DB 변경은 draw.io 다이어그램으로 먼저 그리고 직접 확인 후 진행',
+        'DB MCP는 읽기 전용 계정만, 데이터를 바꾸는 쿼리는 직접 실행',
+        '네거티브 케이스 포함 테스트케이스 문서 → 머지 전 Playwright 자동 검증 → 직접 사용 확인',
+      ]},
+      { h: 'MONITORING', items: [
+        'Datadog 알림 원인 분석 DevOps 세션 상시 운영, Remote Control로 모바일 확인',
+        '클라우드 Claude Code가 문서와 알림을 2시간마다 취합해 이메일 보고',
+      ]},
+    ],
+    tech: ['Claude Code', 'git worktree', 'MCP', 'Playwright', 'Datadog'],
+  },
+  {
+    kicker: 'Personal', title: '스터디', meta: '2021 ~ 2023',
+    board: ['함수형 코딩 · 운영체제 · 디자인 패턴', '타입스크립트 · 자바스크립트 Deep Dive', '리팩터링 2판 · HTTP 완벽가이드'],
+    groups: [{ h: 'STUDIES', items: [
+      '쏙쏙 들어오는 함수형 코딩 (2023.08 ~ 2023.10)',
+      '운영체제 Operating System Concepts 발표 (2023.01 ~ 2023.06)',
+      '헤드 퍼스트 디자인 패턴 발표·토론 (2022.10 ~ 2023.01)',
+      '타입스크립트 프로그래밍 (2022.05 ~ 2022.06)',
+      '자바스크립트 Deep Dive (2022.02 ~ 2022.04)',
+      '리팩터링 2판 (2021.11 ~ 2022.02)',
+      'HTTP 완벽가이드 (2021.10 ~ 2022.02)',
+    ]}],
+    tech: [],
+    links: [
+      ['함수형 코딩 노트', 'https://github.com/TaehwanGo/books/tree/main/Grokking-Simplicity'],
+      ['운영체제 스터디', 'https://github.com/Metacognition-Polymath/operating-system-concepts'],
+      ['디자인 패턴 스터디', 'https://github.com/Metacognition-Polymath/design-pattern'],
+      ['리팩터링 2판 스터디', 'https://github.com/Metacognition-Polymath/refactoring-2nd-edition'],
+    ],
+  },
+  {
+    kicker: 'Contact', title: 'Contact', meta: '여기까지 달려 주셔서 감사합니다',
+    board: ['gth1123@naver.com', 'github.com/TaehwanGo', 'velog.io/@gth1123'],
+    groups: [{ h: 'CHANNELS', items: ['더 궁금한 내용이 있으시면 이메일로 연락 부탁드립니다'] }],
+    tech: [],
+    email: 'gth1123@naver.com',
+    links: [
+      ['GitHub · TaehwanGo', 'https://github.com/TaehwanGo'],
+      ['GitHub · GoTaehwan', 'https://github.com/GoTaehwan'],
+      ['기술 블로그 · velog', 'https://velog.io/@gth1123'],
+      ['개인 블로그', 'https://blog.naver.com/gth1123'],
+      ['이력서 웹으로 보기 (Notion)', 'https://pickle-weeder-20b.notion.site/59bd0bc3fef244edbcf024827aeda484'],
+    ],
+  },
+];
+
+/* ───────────── Track layout ───────────── */
+const GAP = 140;
+const stageZ = i => -60 - i * GAP;
+const END_Z = stageZ(STAGES.length - 1) - 130;
+const WALL_Z = END_Z - 160;
+const ROAD_W = 18;
+const RAMPS = [1, 3, 5, 7, 9, 11, 13].map((i, n) => ({
+  x: n % 2 ? -3 : 3, z0: stageZ(i) - 62, len: 15, w: 7, h: 3.2,
+}));
+function rampAt(x, z) {
+  for (const r of RAMPS) {
+    if (Math.abs(x - r.x) <= r.w / 2 && z <= r.z0 && z >= r.z0 - r.len) return r;
+  }
+  return null;
+}
+function heightAt(x, z) {
+  const r = rampAt(x, z);
+  return r ? r.h * (r.z0 - z) / r.len : 0;
+}
+
+/* ───────────── Renderer & scene ───────────── */
+const $ = s => document.querySelector(s);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const renderer = new THREE.WebGLRenderer({ canvas: $('#scene'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+const HORIZON = '#eaa57e';
+scene.fog = new THREE.Fog(HORIZON, 70, 560);
+{
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512;
+  const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#1b2142'); gr.addColorStop(0.38, '#5e3f6c'); gr.addColorStop(0.62, '#c9786f');
+  gr.addColorStop(0.8, HORIZON); gr.addColorStop(1, HORIZON);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  scene.background = t;
+}
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1800);
+
+scene.add(new THREE.HemisphereLight(0xffd8bd, 0x4b3330, 1.0));
+const sun = new THREE.DirectionalLight(0xffc28c, 2.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 160 });
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+
+const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(70, 48), new THREE.MeshBasicMaterial({ color: 0xffe4b5, fog: false }));
+scene.add(sunDisc);
+
+/* Ground + road */
+const trackLen = 40 - (WALL_Z - 120);
+const trackMid = (40 + WALL_Z - 120) / 2;
+{
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(900, trackLen + 900),
+    new THREE.MeshStandardMaterial({ color: 0xc58b62, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.z = trackMid; ground.receiveShadow = true;
+  scene.add(ground);
+
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, trackLen),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a33, roughness: 0.9 }));
+  road.rotation.x = -Math.PI / 2; road.position.set(0, 0.01, trackMid); road.receiveShadow = true;
+  scene.add(road);
+
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xf2ebe2 });
+  for (const s of [-1, 1]) {
+    const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, trackLen), lineMat);
+    edge.rotation.x = -Math.PI / 2; edge.position.set(s * (ROAD_W / 2 - 0.6), 0.02, trackMid);
+    scene.add(edge);
+  }
+  const dashCount = Math.floor(trackLen / 10);
+  const dashes = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.28, 3.2), new THREE.MeshBasicMaterial({ color: 0xffb54d }), dashCount);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+  for (let i = 0; i < dashCount; i++) {
+    m.compose(new THREE.Vector3(0, 0.02, 40 - i * 10), q, new THREE.Vector3(1, 1, 1));
+    dashes.setMatrixAt(i, m);
+  }
+  scene.add(dashes);
+}
+
+/* Roadside: factory silhouettes, chimneys, lamp posts */
+{
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const count = 170;
+  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x6d5560, roughness: 0.95 }), count);
+  const stacks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.7, 1, 10), new THREE.MeshStandardMaterial({ color: 0x5a4652, roughness: 0.9 }), 50);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion();
+  for (let i = 0; i < count; i++) {
+    const side = rnd() < 0.5 ? -1 : 1;
+    const w = 10 + rnd() * 26, h = 5 + rnd() * 20, d = 10 + rnd() * 30;
+    const x = side * (46 + rnd() * 200);
+    const z = 60 - rnd() * (trackLen + 100);
+    m.compose(new THREE.Vector3(x, h / 2, z), q, new THREE.Vector3(w, h, d));
+    blocks.setMatrixAt(i, m);
+    if (i < 50) {
+      const sh = h + 8 + rnd() * 16;
+      m.compose(new THREE.Vector3(x + w * 0.3, sh / 2, z), q, new THREE.Vector3(1.4, sh, 1.4));
+      stacks.setMatrixAt(i, m);
+    }
+  }
+  blocks.receiveShadow = true;
+  scene.add(blocks, stacks);
+
+  const poleCount = Math.floor(trackLen / 45) * 2;
+  const poles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 7, 0.25), new THREE.MeshStandardMaterial({ color: 0x3a3440 }), poleCount);
+  const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6, 0.25, 0.5), new THREE.MeshBasicMaterial({ color: 0xfff1d6 }), poleCount);
+  for (let i = 0; i < poleCount; i++) {
+    const s = i % 2 ? -1 : 1, z = 30 - Math.floor(i / 2) * 45;
+    m.compose(new THREE.Vector3(s * (ROAD_W / 2 + 2.5), 3.5, z), q, new THREE.Vector3(1, 1, 1)); poles.setMatrixAt(i, m);
+    m.compose(new THREE.Vector3(s * (ROAD_W / 2 + 1.8), 7, z), q, new THREE.Vector3(1, 1, 1)); lamps.setMatrixAt(i, m);
+  }
+  scene.add(poles, lamps);
+}
+
+/* ───────────── Roadster ───────────── */
+function makeRoadster() {
+  const g = new THREE.Group();
+  const paint = new THREE.MeshPhysicalMaterial({ color: 0xc8101f, metalness: 0.55, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0x0b0d14, metalness: 0.2, roughness: 0.05, clearcoat: 1 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x15161c, roughness: 0.6 });
+
+  const side = new THREE.Shape();
+  [[-2.3, 0.32], [2.15, 0.32], [2.38, 0.5], [2.2, 0.68], [1.1, 0.86], [0.45, 0.94], [-1.4, 0.98], [-2.25, 0.92], [-2.36, 0.6]]
+    .forEach(([x, y], i) => i ? side.lineTo(x, y) : side.moveTo(x, y));
+  const bodyGeo = new THREE.ExtrudeGeometry(side, { depth: 1.86, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.08, bevelSegments: 3 });
+  bodyGeo.rotateY(Math.PI / 2); bodyGeo.translate(-0.93, 0, 0);
+  const body = new THREE.Mesh(bodyGeo, paint); body.castShadow = true; g.add(body);
+
+  const cab = new THREE.Shape();
+  [[0.5, 0.9], [-0.2, 1.3], [-1.05, 1.27], [-1.6, 0.97]].forEach(([x, y], i) => i ? cab.lineTo(x, y) : cab.moveTo(x, y));
+  const cabGeo = new THREE.ExtrudeGeometry(cab, { depth: 1.5, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2 });
+  cabGeo.rotateY(Math.PI / 2); cabGeo.translate(-0.75, 0, 0);
+  const cabin = new THREE.Mesh(cabGeo, glass); cabin.castShadow = true; g.add(cabin);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  head.position.set(0, 0.66, -2.28); g.add(head);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.07, 0.05), new THREE.MeshBasicMaterial({ color: 0xff2638 }));
+  tail.position.set(0, 0.86, 2.36); g.add(tail);
+  const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.22, 0.3), dark);
+  diffuser.position.set(0, 0.4, 2.28); g.add(diffuser);
+
+  const wheels = [];
+  const tire = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 22); tire.rotateZ(Math.PI / 2);
+  const rim = new THREE.CylinderGeometry(0.27, 0.27, 0.36, 10); rim.rotateZ(Math.PI / 2);
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0x9aa0aa, metalness: 0.9, roughness: 0.3 });
+  for (const [x, z] of [[-0.95, -1.42], [0.95, -1.42], [-0.95, 1.45], [0.95, 1.45]]) {
+    const steerPivot = new THREE.Group(); steerPivot.position.set(x, 0.42, z);
+    const spin = new THREE.Group();
+    const t = new THREE.Mesh(tire, dark); t.castShadow = true;
+    const r = new THREE.Mesh(rim, rimMat);
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.5, 0.08), rimMat);
+    spin.add(t, r, spoke); steerPivot.add(spin); g.add(steerPivot);
+    wheels.push({ steerPivot, spin, front: z < 0 });
+  }
+
+  // SpaceX-package cold-gas thrusters at the rear
+  const flames = [];
+  const nozzleGeo = new THREE.CylinderGeometry(0.16, 0.22, 0.3, 14); nozzleGeo.rotateX(Math.PI / 2);
+  const outer = new THREE.ConeGeometry(0.24, 1, 14, 1, true); outer.rotateX(Math.PI / 2); outer.translate(0, 0, 0.5);
+  const inner = new THREE.ConeGeometry(0.12, 0.7, 10, 1, true); inner.rotateX(Math.PI / 2); inner.translate(0, 0, 0.35);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x9fe3ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  for (const x of [-0.45, 0.45]) {
+    const noz = new THREE.Mesh(nozzleGeo, dark); noz.position.set(x, 0.62, 2.42); g.add(noz);
+    const f = new THREE.Group(); f.position.set(x, 0.62, 2.55);
+    f.add(new THREE.Mesh(outer, flameMat), new THREE.Mesh(inner, coreMat));
+    g.add(f); flames.push(f);
+  }
+  // downward lift jets used on jumps
+  const lift = [];
+  const liftGeo = new THREE.ConeGeometry(0.2, 1, 10, 1, true); liftGeo.rotateX(Math.PI); liftGeo.translate(0, -0.5, 0);
+  for (const [x, z] of [[-0.7, -0.6], [0.7, -0.6], [-0.7, 0.9], [0.7, 0.9]]) {
+    const f = new THREE.Mesh(liftGeo, coreMat); f.position.set(x, 0.3, z); f.scale.setScalar(0.001); g.add(f); lift.push(f);
+  }
+  const light = new THREE.PointLight(0xff8a2a, 0, 12, 2); light.position.set(0, 0.8, 3.2); g.add(light);
+  return { group: g, wheels, flames, lift, light };
+}
+const R = makeRoadster();
+scene.add(R.group);
+
+/* ───────────── Billboards ───────────── */
+async function fontsReady() {
+  try {
+    await Promise.race([
+      Promise.all([
+        document.fonts.load('700 72px "IBM Plex Sans KR"', '고태환'),
+        document.fonts.load('400 34px "IBM Plex Sans KR"', '고태환'),
+        document.fonts.load('500 24px "IBM Plex Mono"', 'STAGE'),
+        document.fonts.load('800 40px "Saira Condensed"', '0123'),
+      ]),
+      new Promise(r => setTimeout(r, 3500)),
+    ]);
+  } catch (e) { /* fall back to system fonts */ }
+}
+function wrap(ctx, text, maxW) {
+  const words = text.split(' '); const lines = []; let line = '';
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+function drawBoard(st, i) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 640;
+  const x = c.getContext('2d');
+  x.fillStyle = '#141722'; x.fillRect(0, 0, 1024, 640);
+  x.fillStyle = '#e8202f'; x.fillRect(0, 0, 1024, 86);
+  x.fillStyle = '#ffffff'; x.font = '500 28px "IBM Plex Mono", monospace'; x.textBaseline = 'middle';
+  x.fillText(`STAGE ${String(i + 1).padStart(2, '0')} / ${STAGES.length}`, 48, 44);
+  x.textAlign = 'right'; x.fillText(st.kicker.toUpperCase(), 976, 44); x.textAlign = 'left';
+  x.textBaseline = 'alphabetic';
+  x.font = '700 70px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif'; x.fillStyle = '#f4ede7';
+  x.fillText(st.title, 48, 178);
+  x.font = '400 30px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif'; x.fillStyle = '#b9ada5';
+  x.fillText(st.meta, 48, 226);
+  x.fillStyle = 'rgba(255,228,210,0.18)'; x.fillRect(48, 256, 928, 2);
+  let y = 318;
+  x.font = '400 36px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif';
+  for (const b of st.board) {
+    const lines = wrap(x, b, 880).slice(0, 2);
+    x.fillStyle = '#ffb54d'; x.fillRect(48, y - 14, 18, 4);
+    x.fillStyle = '#f4ede7';
+    lines.forEach((l, k) => x.fillText(l, 84, y + k * 46));
+    y += lines.length * 46 + 22;
+    if (y > 600) break;
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+const postMat = new THREE.MeshStandardMaterial({ color: 0x2b2a33, roughness: 0.7 });
+const gateMat = new THREE.MeshBasicMaterial({ color: 0xe8202f, transparent: true, opacity: 0.55 });
+function buildBoards() {
+  STAGES.forEach((st, i) => {
+    const side = i % 2 ? -1 : 1;
+    const g = new THREE.Group();
+    const W = 16, H = 10;
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: drawBoard(st, i), toneMapped: false }));
+    face.position.y = 8.5;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, H + 0.4, 0.3), postMat);
+    back.position.set(0, 8.5, -0.2); back.castShadow = true;
+    g.add(face, back);
+    for (const px of [-W / 3, W / 3]) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.6, 0.4), postMat);
+      p.position.set(px, 1.8, -0.2); p.castShadow = true; g.add(p);
+    }
+    g.position.set(side * (ROAD_W / 2 + 9.5), 0, stageZ(i));
+    g.rotation.y = -side * 0.42;
+    scene.add(g);
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, 0.7), gateMat);
+    line.rotation.x = -Math.PI / 2; line.position.set(0, 0.03, stageZ(i) + 20);
+    scene.add(line);
+  });
+}
+
+/* Ramps */
+{
+  const rampMat = new THREE.MeshStandardMaterial({ color: 0xffb54d, roughness: 0.6 });
+  const stripeMat = new THREE.MeshBasicMaterial({ color: 0x141722 });
+  for (const r of RAMPS) {
+    const s = new THREE.Shape(); s.moveTo(0, 0); s.lineTo(r.len, 0); s.lineTo(r.len, r.h); s.closePath();
+    const geo = new THREE.ExtrudeGeometry(s, { depth: r.w, bevelEnabled: false });
+    geo.rotateY(Math.PI / 2); geo.translate(-r.w / 2, 0, 0);
+    const mesh = new THREE.Mesh(geo, rampMat); mesh.position.set(r.x, 0, r.z0);
+    mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+    for (let k = 1; k < 5; k++) {
+      const t = k / 5, zz = r.z0 - r.len * t;
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(r.w, 0.5), stripeMat);
+      st.position.set(r.x, r.h * t + 0.02, zz);
+      st.rotation.x = -Math.PI / 2 + Math.atan2(r.h, r.len);
+      scene.add(st);
+    }
+  }
+}
+
+/* Orbs */
+const orbs = [];
+{
+  const geo = new THREE.IcosahedronGeometry(0.55, 1);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x86dbff, emissive: 0x3fb6ff, emissiveIntensity: 1.6, roughness: 0.3 });
+  const add = (x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.userData.base = y; scene.add(o); orbs.push(o); };
+  for (let i = 0; i < STAGES.length - 1; i++) {
+    const z0 = stageZ(i) - 18;
+    for (let k = 0; k < 5; k++) add(Math.sin(i * 1.7 + k * 0.7) * 5, 1.2, z0 - k * 7);
+  }
+  for (const r of RAMPS) for (let k = 0; k < 3; k++) add(r.x, 6.5 + k * 0.8, r.z0 - r.len - 10 - k * 7);
+}
+
+/* Finish gate */
+{
+  const g = new THREE.Group();
+  for (const s of [-1, 1]) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, 9, 0.8), postMat); p.position.set(s * (ROAD_W / 2 + 1), 4.5, 0); g.add(p);
+  }
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 128;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 32; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#141722' : '#f4ede7'; x.fillRect(i * 32, j * 32, 32, 32); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(ROAD_W + 2.8, 2, 0.4), new THREE.MeshBasicMaterial({ map: t }));
+  bar.position.y = 9; g.add(bar);
+  g.position.z = END_Z; scene.add(g);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(80, 3, 2), new THREE.MeshStandardMaterial({ color: 0xe8202f }));
+  wall.position.set(0, 1.5, WALL_Z - 2); scene.add(wall);
+}
+
+/* ───────────── State & input ───────────── */
+const car = { x: 0, y: 0, z: 12, yaw: 0, speed: 0, vy: 0, lastVy: 0, onGround: true, jumps: 0, energy: 100, pitch: 0, flip: -1, burst: 0 };
+const keys = { up: false, down: false, left: false, right: false, boost: false };
+let started = false, finished = false, runStart = 0, orbCount = 0;
+let zeroArmed = true, zeroT0 = null, zeroBest = null;
+let current = -2;
+const seen = new Set();
+
+const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ShiftLeft: 'boost', ShiftRight: 'boost' };
+addEventListener('keydown', e => {
+  if (!started) return;
+  if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jump(); }
+  if (e.code === 'KeyR' && !e.repeat) respawn(Math.max(current, 0));
+});
+addEventListener('keyup', e => { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+document.querySelectorAll('.tb').forEach(b => {
+  const k = b.dataset.key;
+  const on = e => { e.preventDefault(); b.classList.add('on'); if (k === 'jump') jump(); else keys[k] = true; };
+  const off = () => { b.classList.remove('on'); if (k !== 'jump') keys[k] = false; };
+  b.addEventListener('pointerdown', on);
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, off);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+});
+
+const toastEl = $('#toast'); let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 900);
+}
+function jump() {
+  if (!started) return;
+  if (car.onGround) {
+    car.onGround = false; car.vy = 11.5; car.jumps = 1; car.burst = 0.35;
+  } else if (car.jumps < 2) {
+    car.vy = Math.max(car.vy, 0) + 13; car.jumps = 2; car.flip = 0; car.burst = 0.5;
+    toast('THRUSTER FLIP');
+  }
+}
+function respawn(i) {
+  Object.assign(car, { x: 0, y: 0, z: i < 0 ? 12 : stageZ(i) + 45, yaw: 0, speed: 0, vy: 0, lastVy: 0, onGround: true, jumps: 0, pitch: 0, flip: -1 });
+  zeroArmed = true; zeroT0 = null;
+}
+
+/* Strip */
+const strip = $('#strip');
+STAGES.forEach((st, i) => {
+  const b = document.createElement('button');
+  b.title = `${i + 1}. ${st.title}`; b.setAttribute('aria-label', `${i + 1}번 스테이지 ${st.title}로 이동`);
+  b.addEventListener('click', () => { if (!started) begin(); respawn(i); car.speed = 18; b.blur(); });
+  strip.appendChild(b);
+});
+
+/* Dossier */
+const dossier = $('#dossier');
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const narrow = matchMedia('(max-width: 720px)');
+function renderDossier(i) {
+  let html;
+  if (i < 0) {
+    html = `<div class="d-head"><span class="d-stage">Start</span><button class="d-toggle" id="dToggle">자세히</button></div>
+      <h2>출발선</h2><div class="d-meta">↑ 가속 · Shift 부스터 · Space 점프</div>
+      <div class="d-body"><div class="d-group"><h3>COURSE</h3><ul>
+      ${STAGES.map((s, k) => `<li>${String(k + 1).padStart(2, '0')} ${esc(s.title)}</li>`).join('')}</ul></div></div>`;
+  } else {
+    const st = STAGES[i];
+    html = `<div class="d-head"><span class="d-stage">Stage ${String(i + 1).padStart(2, '0')} · ${esc(st.kicker)}</span><button class="d-toggle" id="dToggle">자세히</button></div>
+      <h2>${esc(st.title)}</h2><div class="d-meta">${esc(st.meta)}</div>
+      <div class="d-body">
+        ${st.groups.map(g => `<div class="d-group"><h3>${esc(g.h)}</h3><ul>${g.items.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}
+        ${st.email ? `<div class="copy"><code>${esc(st.email)}</code><button data-copy="${esc(st.email)}">복사</button></div>` : ''}
+        ${st.links ? `<div class="links">${st.links.map(([l, h]) => `<a href="${esc(h)}" target="_blank" rel="noopener">${esc(l)} ↗</a>`).join('')}</div>` : ''}
+        ${st.tech.length ? `<div class="chips">${st.tech.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+      </div>`;
+  }
+  dossier.innerHTML = html;
+  if (narrow.matches && !dossier.dataset.open) dossier.classList.add('collapsed');
+  const tg = $('#dToggle');
+  if (tg) {
+    tg.textContent = dossier.classList.contains('collapsed') ? '자세히' : '접기';
+    tg.addEventListener('click', () => {
+      dossier.classList.toggle('collapsed');
+      dossier.dataset.open = dossier.classList.contains('collapsed') ? '' : '1';
+      tg.textContent = dossier.classList.contains('collapsed') ? '자세히' : '접기';
+    });
+  }
+  dossier.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
+  dossier.scrollTop = 0;
+}
+function copyText(text, btn) {
+  const done = () => { const o = btn.textContent; btn.textContent = '복사됨'; setTimeout(() => btn.textContent = o, 1200); };
+  try {
+    navigator.clipboard.writeText(text).then(done, () => selectFallback(btn));
+  } catch (e) { selectFallback(btn); }
+}
+function selectFallback(btn) {
+  const code = btn.parentElement.querySelector('code');
+  const r = document.createRange(); r.selectNodeContents(code);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+function setStage(i) {
+  if (i === current) return;
+  current = i;
+  if (i >= 0) seen.add(i);
+  dossier.classList.add('swap');
+  setTimeout(() => { renderDossier(i); dossier.classList.remove('swap'); }, reduceMotion ? 0 : 180);
+  [...strip.children].forEach((b, k) => { b.classList.toggle('on', k === i); b.classList.toggle('seen', seen.has(k)); });
+  $('#stageNo').textContent = `${Math.max(i + 1, 0)}/${STAGES.length}`;
+}
+function stageAt(z) {
+  for (let i = STAGES.length - 1; i >= 0; i--) if (z <= stageZ(i) + 50) return i;
+  return -1;
+}
+
+/* Overlays */
+function begin() {
+  if (started) return;
+  started = true; runStart = performance.now();
+  $('#intro').hidden = true;
+  $('#scene').focus?.();
+}
+$('#start').addEventListener('click', begin);
+$('#again').addEventListener('click', () => { $('#finish').hidden = true; finished = false; respawn(-1); runStart = performance.now(); });
+$('#keepDriving').addEventListener('click', () => { $('#finish').hidden = true; });
+$('#copyMail').addEventListener('click', e => copyText('gth1123@naver.com', e.currentTarget));
+function showFinish() {
+  finished = true;
+  $('#fTime').textContent = ((performance.now() - runStart) / 1000).toFixed(1) + 's';
+  $('#fOrbs').textContent = `${orbCount}`;
+  $('#fZero').textContent = zeroBest ? zeroBest.toFixed(2) + 's' : '—';
+  for (const k in keys) keys[k] = false;
+  $('#finish').hidden = false;
+}
+
+/* ───────────── Simulation ───────────── */
+const GRAV = 28;
+const finishEl = $('#finish');
+const tmpV = new THREE.Vector3(), look = new THREE.Vector3();
+let shake = 0, idleT = 0;
+const kmhEl = $('#kmh'), boostFill = $('#boostFill'), boostBar = $('#boostBar'), orbEl = $('#orbs'), zeroEl = $('#zero');
+
+function step(dt) {
+  const throttle = keys.up ? 1 : 0, brake = keys.down ? 1 : 0;
+  const steer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+  const boosting = keys.boost && car.energy > 1;
+
+  let acc = 0;
+  if (boosting) acc += car.onGround ? 40 : 24;
+  if (car.onGround) {
+    if (throttle) acc += car.speed < 0 ? 30 : 14;
+    if (brake) acc -= car.speed > 0.5 ? 34 : 10;
+    if (!throttle && !brake && !boosting) acc -= Math.sign(car.speed) * Math.min(Math.abs(car.speed) / dt, 5);
+  }
+  car.speed += acc * dt;
+  const vmax = boosting ? 92 : 52;
+  if (car.speed > vmax) car.speed = Math.max(vmax, car.speed - 30 * dt);
+  car.speed = Math.max(car.speed, -14);
+
+  if (car.onGround) {
+    const sf = Math.min(1, Math.abs(car.speed) / 12);
+    car.yaw += steer * 1.9 * sf * Math.sign(car.speed || 1) * (boosting ? 0.75 : 1) * dt;
+  } else {
+    car.yaw += steer * 1.7 * dt;
+  }
+
+  car.energy = boosting ? Math.max(0, car.energy - 28 * dt) : Math.min(100, car.energy + 8 * dt);
+
+  car.x -= Math.sin(car.yaw) * car.speed * dt;
+  car.z -= Math.cos(car.yaw) * car.speed * dt;
+  if (Math.abs(car.x) > 140) { car.x = Math.sign(car.x) * 140; car.speed *= 0.5; }
+  if (car.z > 40) { car.z = 40; car.speed *= 0.3; }
+  if (car.z < WALL_Z) { car.z = WALL_Z; car.speed = Math.min(car.speed, 0); }
+
+  const g = heightAt(car.x, car.z);
+  if (car.onGround) {
+    if (g < car.y - 0.05) { car.onGround = false; car.vy = Math.min(car.lastVy, 24); car.jumps = 1; }
+    else { car.lastVy = Math.max(0, (g - car.y) / dt); car.y = g; }
+  }
+  if (!car.onGround) {
+    car.vy -= GRAV * dt;
+    car.y += car.vy * dt;
+    if (car.y <= g) {
+      if (car.vy < -16 && !reduceMotion) shake = Math.min(0.6, -car.vy / 40);
+      if (car.flip >= 0) toast('LANDED');
+      car.y = g; car.vy = 0; car.onGround = true; car.lastVy = 0; car.jumps = 0; car.flip = -1;
+    }
+  }
+
+  // pitch: follow ramp slope on the ground, nose to velocity in the air, plus the thruster flip
+  const r = rampAt(car.x, car.z);
+  const pitchTarget = car.onGround ? (r ? Math.atan2(r.h, r.len) : 0) : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);
+  car.pitch += (pitchTarget - car.pitch) * Math.min(1, dt * 8);
+  let flipAngle = 0;
+  if (car.flip >= 0) {
+    car.flip = Math.min(1, car.flip + dt / 0.85);
+    const t = car.flip; flipAngle = Math.PI * 2 * (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  }
+  R.group.position.set(car.x, car.y, car.z);
+  R.group.rotation.set(car.pitch + flipAngle, car.yaw, 0, 'YXZ');
+
+  for (const w of R.wheels) {
+    w.spin.rotation.x -= car.speed * dt / 0.42;
+    if (w.front) w.steerPivot.rotation.y = steer * 0.42;
+  }
+  car.burst = Math.max(0, car.burst - dt);
+  const heat = boosting ? 1 : throttle ? 0.18 : 0.05;
+  R.flames.forEach(f => {
+    const flick = 0.85 + Math.random() * 0.3;
+    f.scale.set(0.6 + heat * 0.7, 0.6 + heat * 0.7, (0.3 + heat * 2.4) * flick);
+    f.visible = heat > 0.06;
+  });
+  const liftOn = car.burst > 0 ? car.burst / 0.5 : 0;
+  R.lift.forEach(f => f.scale.set(1, Math.max(0.001, liftOn * 2.2 * (0.8 + Math.random() * 0.4)), 1));
+  R.light.intensity = heat * 40 + liftOn * 30;
+
+  // orbs
+  const t = performance.now() / 1000;
+  for (const o of orbs) {
+    if (!o.visible) continue;
+    o.rotation.y = t * 1.5; o.position.y = o.userData.base + Math.sin(t * 2 + o.position.z) * 0.25;
+    if (Math.abs(o.position.z - car.z) < 2.2 && Math.abs(o.position.x - car.x) < 2.2 && Math.abs(o.position.y - (car.y + 0.8)) < 2.4) {
+      o.visible = false; orbCount++; car.energy = Math.min(100, car.energy + 15);
+      orbEl.textContent = orbCount;
+    }
+  }
+
+  // 0–100 km/h timer
+  const kmh = Math.abs(car.speed) * 4;
+  if (kmh < 2 && car.onGround) { zeroArmed = true; zeroT0 = null; }
+  if (zeroArmed && zeroT0 === null && car.speed > 0.5) zeroT0 = performance.now();
+  if (zeroArmed && zeroT0 !== null && kmh >= 100) {
+    const s = (performance.now() - zeroT0) / 1000; zeroArmed = false;
+    zeroBest = zeroBest ? Math.min(zeroBest, s) : s;
+    zeroEl.textContent = s.toFixed(2) + 's';
+    toast(`0–100 km/h ${s.toFixed(2)}s`);
+  }
+
+  kmhEl.textContent = Math.round(kmh);
+  boostFill.style.transform = `scaleX(${car.energy / 100})`;
+  boostBar.classList.toggle('low', car.energy < 15);
+
+  setStage(stageAt(car.z));
+  if (!finished && car.z < END_Z) showFinish();
+}
+
+function updateCamera(dt) {
+  if (!started) {
+    idleT += dt;
+    const a = idleT * 0.25;
+    camera.position.set(car.x + Math.sin(a) * 9, 3.2, car.z + Math.cos(a) * 9);
+    camera.lookAt(car.x, 0.9, car.z);
+    camera.fov = 52; camera.updateProjectionMatrix();
+    return;
+  }
+  const sp = Math.max(0, car.speed);
+  const back = 9.5 + sp * 0.03, up = 3.6 + sp * 0.01;
+  tmpV.set(car.x + Math.sin(car.yaw) * back, car.y * 0.7 + up, car.z + Math.cos(car.yaw) * back);
+  camera.position.lerp(tmpV, 1 - Math.exp(-dt * 14));
+  if (shake > 0) {
+    camera.position.y += (Math.random() - 0.5) * shake; camera.position.x += (Math.random() - 0.5) * shake;
+    shake = Math.max(0, shake - dt * 1.8);
+  }
+  look.set(car.x - Math.sin(car.yaw) * 6, car.y + 1.3, car.z - Math.cos(car.yaw) * 6);
+  camera.lookAt(look);
+  const fovT = 62 + sp * 0.12 + (keys.boost && car.energy > 1 ? 8 : 0);
+  camera.fov += (fovT - camera.fov) * Math.min(1, dt * 4);
+  camera.updateProjectionMatrix();
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - (frame.last || now)) / 1000); frame.last = now;
+  if (started && finishEl.hidden) step(dt);
+  updateCamera(dt);
+  sun.position.set(car.x + 25, 45, car.z - 60); sun.target.position.set(car.x, 0, car.z);
+  sunDisc.position.set(car.x * 0.2, 60, car.z - 1300);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+});
+
+/* Keep a driver's place when the page updates under them */
+window.claude?.hot?.snapshot?.(() => ({ x: car.x, z: car.z, yaw: car.yaw, started, orbCount, zeroBest }));
+function boot(data = {}) {
+  if (data && typeof data.z === 'number') {
+    Object.assign(car, { x: data.x, z: data.z, yaw: data.yaw });
+    orbCount = data.orbCount || 0; zeroBest = data.zeroBest || null; orbEl.textContent = orbCount;
+    if (data.started) begin();
+  }
+  setStage(-1);
+  requestAnimationFrame(frame);
+}
+
+await fontsReady();
+buildBoards();
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
