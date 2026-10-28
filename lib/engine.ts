@@ -68,7 +68,7 @@ const JUMP_V = 9.5; // tap: about 1.6 m
 const JUMP_HOLD_MAX = 1.0; // seconds Space can keep the lift jets on
 const JUMP_HOLD_LIFT = 22; // upward accel while held (net -6 m/s² against gravity)
 const STEER_RATE = 1.15; // rad/s at full lock on the ground
-const AIR_YAW_RATE = 1.1;
+const AIR_SPIN_RATE = 4.2; // rad/s body spin in the air: a full turn in 1.5 s, so a long jump fits a 360
 const STEER_RESPONSE = 3.2; // how fast the wheel follows the key (1/s)
 const IDLE_ORBIT = 0.16; // rad/s on the title screen
 
@@ -567,7 +567,9 @@ export async function createGame(
     x: 0,
     y: 0,
     z: 12,
-    yaw: 0,
+    yaw: 0, // where the body points
+    moveYaw: 0, // where the car travels; splits from yaw only in the air
+    spin: 0, // body rotation gathered during the current jump
     speed: 0,
     steer: 0,
     vy: 0,
@@ -629,6 +631,8 @@ export async function createGame(
       y: 0,
       z,
       yaw: 0,
+      moveYaw: 0,
+      spin: 0,
       speed: 0,
       steer: 0,
       vy: 0,
@@ -734,14 +738,18 @@ export async function createGame(
       // full lock fades in from a standstill and eases off a little at top speed
       const sf = Math.min(1, Math.abs(car.speed) / 14) * (1 - Math.min(0.35, Math.abs(car.speed) / 260));
       car.yaw += car.steer * STEER_RATE * sf * Math.sign(car.speed || 1) * (boosting ? 0.8 : 1) * dt;
+      car.moveYaw = car.yaw;
     } else {
-      car.yaw += car.steer * AIR_YAW_RATE * dt;
+      // in the air ←/→ spin the body directly while the car keeps flying the way it launched
+      const d = steerIn * AIR_SPIN_RATE * dt;
+      car.yaw += d;
+      car.spin += d;
     }
 
     car.energy = boosting ? Math.max(0, car.energy - 28 * dt) : Math.min(100, car.energy + 8 * dt);
 
-    car.x -= Math.sin(car.yaw) * car.speed * dt;
-    car.z -= Math.cos(car.yaw) * car.speed * dt;
+    car.x -= Math.sin(car.moveYaw) * car.speed * dt;
+    car.z -= Math.cos(car.moveYaw) * car.speed * dt;
     if (Math.abs(car.x) > 140) {
       car.x = Math.sign(car.x) * 140;
       car.speed *= 0.5;
@@ -777,7 +785,14 @@ export async function createGame(
       car.y += car.vy * dt;
       if (car.y <= g) {
         if (car.vy < -16 && !reduceMotion) shake = Math.min(0.6, -car.vy / 40);
-        if (car.flip >= 0) hooks.onToast('LANDED');
+        const turns = Math.floor(Math.abs(car.spin) / (Math.PI * 2) + 0.15); // 306° or more counts as a full turn
+        if (turns > 0) hooks.onToast(`SPIN ${turns * 360}°`);
+        else if (car.flip >= 0) hooks.onToast('LANDED');
+        // drive off the way the body lands: speed carries over by how well it lines up with the travel direction
+        const align = Math.cos(car.yaw - car.moveYaw);
+        car.speed *= Math.sign(align || 1) * Math.max(0.3, Math.abs(align));
+        car.moveYaw = car.yaw;
+        car.spin = 0;
         car.y = g;
         car.vy = 0;
         car.onGround = true;
@@ -879,14 +894,14 @@ export async function createGame(
     const sp = Math.max(0, car.speed);
     const back = 9.5 + sp * 0.03,
       up = 3.6 + sp * 0.01;
-    tmpV.set(car.x + Math.sin(car.yaw) * back, car.y * 0.7 + up, car.z + Math.cos(car.yaw) * back);
+    tmpV.set(car.x + Math.sin(car.moveYaw) * back, car.y * 0.7 + up, car.z + Math.cos(car.moveYaw) * back);
     camera.position.lerp(tmpV, 1 - Math.exp(-dt * 10));
     if (shake > 0) {
       camera.position.y += (Math.random() - 0.5) * shake;
       camera.position.x += (Math.random() - 0.5) * shake;
       shake = Math.max(0, shake - dt * 1.8);
     }
-    look.set(car.x - Math.sin(car.yaw) * 6, car.y + 1.3, car.z - Math.cos(car.yaw) * 6);
+    look.set(car.x - Math.sin(car.moveYaw) * 6, car.y + 1.3, car.z - Math.cos(car.moveYaw) * 6);
     camera.lookAt(look);
     const fovT = 62 + sp * 0.12 + (keys.boost && car.energy > 1 ? 8 : 0);
     camera.fov += (fovT - camera.fov) * Math.min(1, dt * 4);
