@@ -297,6 +297,9 @@ export default function RoadsterGame() {
               >
                 계속 달리기
               </button>
+              <a className="ghost" href={RESUME_URL} target="_blank" rel="noopener noreferrer">
+                이력서 웹으로 보기 ↗
+              </a>
             </div>
           </div>
         </div>
