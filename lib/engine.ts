@@ -402,12 +402,104 @@ export async function createGame(
       g.add(f);
       lift.push(f);
     }
+    // side roll thrusters: the left pair fires to roll right, the right pair to roll left.
+    // Each jet blows outward and a little down, which is what pushes that side of the car up.
+    const sideJetGeo = new THREE.ConeGeometry(0.17, 1, 12, 1, true);
+    sideJetGeo.translate(0, 0.5, 0); // base at the nozzle, tip pointing along +Y before orienting
+    const sideCoreGeo = new THREE.ConeGeometry(0.08, 0.7, 8, 1, true);
+    sideCoreGeo.translate(0, 0.35, 0);
+    const airMat = new THREE.MeshBasicMaterial({
+      color: 0xdff4ff,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const nozzleSideGeo = new THREE.CylinderGeometry(0.09, 0.12, 0.16, 10);
+    const makeSide = (s: -1 | 1) => {
+      const dir = new THREE.Vector3(s, -0.45, 0).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      const jets: THREE.Group[] = [];
+      for (const z of [-1.05, 1.2]) {
+        const noz = new THREE.Mesh(nozzleSideGeo, dark);
+        noz.position.set(s * 1.0, 0.62, z);
+        noz.quaternion.copy(q);
+        g.add(noz);
+        const jet = new THREE.Group();
+        jet.position.set(s * 1.08, 0.58, z);
+        jet.quaternion.copy(q);
+        jet.add(new THREE.Mesh(sideJetGeo, airMat), new THREE.Mesh(sideCoreGeo, coreMat));
+        jet.scale.setScalar(0.001);
+        g.add(jet);
+        jets.push(jet);
+      }
+      return { jets, dir, level: 0 };
+    };
+    const sides = { left: makeSide(-1), right: makeSide(1) };
+
     const light = new THREE.PointLight(0xff8a2a, 0, 12, 2);
     light.position.set(0, 0.8, 3.2);
     g.add(light);
-    return { group: g, wheels, flames, lift, light };
+    return { group: g, wheels, flames, lift, sides, light };
   })();
   scene.add(R.group);
+
+  /* Cold-gas puffs left behind by the side thrusters (world space, pooled) */
+  const puffs = (() => {
+    // soft round puff drawn once and shared by every sprite
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d')!;
+    const grd = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.45, 'rgba(235,246,255,0.55)');
+    grd.addColorStop(1, 'rgba(235,246,255,0)');
+    x.fillStyle = grd;
+    x.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    const pool: { mesh: THREE.Sprite; vel: THREE.Vector3; life: number }[] = [];
+    for (let i = 0; i < 90; i++) {
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+      const mesh = new THREE.Sprite(mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      pool.push({ mesh, vel: new THREE.Vector3(), life: 0 });
+    }
+    let next = 0;
+    const LIFE = 0.5;
+    return {
+      emit(pos: THREE.Vector3, vel: THREE.Vector3) {
+        const p = pool[next];
+        next = (next + 1) % pool.length;
+        p.mesh.position.copy(pos);
+        p.vel.copy(vel);
+        p.life = LIFE;
+        p.mesh.visible = true;
+      },
+      update(dt: number) {
+        for (const p of pool) {
+          if (p.life <= 0) continue;
+          p.life -= dt;
+          if (p.life <= 0) {
+            p.mesh.visible = false;
+            continue;
+          }
+          const t = 1 - p.life / LIFE;
+          p.vel.multiplyScalar(Math.exp(-dt * 4)); // air drag slows the gas quickly
+          p.mesh.position.addScaledVector(p.vel, dt);
+          p.mesh.scale.setScalar(0.5 + t * 1.8);
+          p.mesh.material.opacity = 0.4 * (1 - t);
+        }
+      },
+      clear() {
+        for (const p of pool) {
+          p.life = 0;
+          p.mesh.visible = false;
+        }
+      },
+    };
+  })();
 
   /* ───────────── Billboards ───────────── */
   const drawBoard = (st: Stage, i: number) => {
@@ -636,6 +728,9 @@ export async function createGame(
   }
   function resetRun() {
     placeCar(12);
+    puffs.clear();
+    R.sides.left.level = R.sides.right.level = 0;
+    for (const side of [R.sides.left, R.sides.right]) for (const jet of side.jets) jet.scale.setScalar(0.001);
     for (const o of orbs) o.visible = true;
     orbCount = 0;
     hud.orbs.textContent = '0';
@@ -701,7 +796,10 @@ export async function createGame(
 
   /* ───────────── Simulation ───────────── */
   const tmpV = new THREE.Vector3(),
-    look = new THREE.Vector3();
+    look = new THREE.Vector3(),
+    puffPos = new THREE.Vector3(),
+    puffVel = new THREE.Vector3();
+  let puffClock = 0;
 
   function step(dt: number) {
     const throttle = keys.up ? 1 : 0,
@@ -817,6 +915,34 @@ export async function createGame(
     const liftOn = car.holding ? 1 : car.burst > 0 ? car.burst / 0.5 : 0;
     for (const f of R.lift) f.scale.set(1, Math.max(0.001, liftOn * 2.2 * (0.8 + Math.random() * 0.4)), 1);
     R.light.intensity = heat * 40 + liftOn * 30;
+
+    // side roll thrusters fire on the side opposite the roll: → fires the left pair, ← the right pair
+    const airborne = !car.onGround;
+    R.sides.left.level = airborne && steerIn < 0 ? 1 : Math.max(0, R.sides.left.level - dt * 8);
+    R.sides.right.level = airborne && steerIn > 0 ? 1 : Math.max(0, R.sides.right.level - dt * 8);
+    R.group.updateMatrixWorld();
+    for (const side of [R.sides.left, R.sides.right]) {
+      for (const jet of side.jets) {
+        const len = side.level * 1.3 * (0.8 + Math.random() * 0.4);
+        jet.scale.set(0.6 + side.level * 0.6, Math.max(0.001, len), 0.6 + side.level * 0.6);
+      }
+      if (side.level < 0.9) continue;
+      puffClock += dt;
+      while (puffClock > 1 / 70) {
+        puffClock -= 1 / 70;
+        const jet = side.jets[Math.floor(Math.random() * side.jets.length)];
+        jet.getWorldPosition(puffPos);
+        puffVel
+          .copy(side.dir)
+          .applyQuaternion(R.group.quaternion)
+          .multiplyScalar(16 + Math.random() * 6);
+        puffVel.x -= Math.sin(car.yaw) * car.speed * 0.6;
+        puffVel.z -= Math.cos(car.yaw) * car.speed * 0.6;
+        puffVel.y += car.vy * 0.4;
+        puffs.emit(puffPos, puffVel);
+      }
+    }
+    puffs.update(dt);
 
     // orbs
     const t = performance.now() / 1000;
